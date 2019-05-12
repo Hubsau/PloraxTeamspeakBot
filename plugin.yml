@@ -1,0 +1,6 @@
+name: PloraxTeamspeakBot
+version: 1.0
+author: Hubsau | @Plorax.net
+main: de.hubsau.ploraxteamspeakbot.bungee.PloraxBot
+commands:
+  verify:
