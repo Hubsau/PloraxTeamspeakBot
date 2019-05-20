@@ -17,10 +17,15 @@ import de.dytanic.cloudnet.lib.player.permission.PermissionPool;
 import de.hubsau.ploraxteamspeakbot.bungee.PloraxBot;
 import de.hubsau.ploraxteamspeakbot.util.Data;
 import de.hubsau.ploraxteamspeakbot.verify.VerifyManager;
+import jdk.internal.util.xml.impl.Input;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Command;
 
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.UUID;
 
 public class VerifyCommand extends Command {
@@ -53,65 +58,22 @@ public class VerifyCommand extends Command {
                     switch (option){
 
                         case "yes":
-                            final UUID uuid = CloudAPI.getInstance().getPlayerUniqueId(name);
-                            final String uid = manager.getWaitingVerify().get(name);
-                            final PermissionPool pool = CloudAPI.getInstance().getPermissionPool();
-                            final String group = CloudAPI.getInstance().getOnlinePlayer(uuid).getPermissionEntity().getHighestPermissionGroup(pool).getName();
-                            manager.verify(uuid, uid, group);
 
-                            System.out.println("uid "+ ts3Api);
-                            final Client client = ts3Api.getClientByUId(uid).getUninterruptibly();
-                            final int dbid = client.getDatabaseId();
+                            if(manager.isWaitingVerify(name)) {
+                                Client client = ts3Api.getClientByUId(manager.getWaitingVerify().get(name))
+                                        .getUninterruptibly();
+                                ts3Api.sendPrivateMessage(client.getId(), "[B]Möchtest du wirklich mit dem Namen [color=green]" + name + "[/color] verifizieren?[/B] (Nutze !ja oder !nein)");
 
+                                player.sendMessage(Data.PREFIX+ "§7Bitte bestätige deine Anfrage erneut in Teamspeak");
+                                manager.getAcceptVerify().put(client.getUniqueIdentifier(), CloudAPI.getInstance().getPlayerUniqueId(name).toString());
 
-                            System.out.println(group);
-                            switch (group.toLowerCase()){
-
-                                case "srdeveloper":  case "vip":
-                                    ts3Api.addClientToServerGroup(Data.VIP_GROUP_ID, dbid);
-
-                                    break;
-
-                                case "jrvip":
-                                   ts3Api.addClientToServerGroup(Data.JRVIP_GROUP_ID, dbid);
-                                    
-
-                                    break;
-
-                                case "king":
-                                   ts3Api.addClientToServerGroup(Data.KING_GROUP_ID, dbid);
-
-                                    break;
-
-                                case "rax":
-                                   ts3Api.addClientToServerGroup(Data.RAX_GROUP_ID, dbid);
-                                    break;
-
-
-                                case "raxplus":
-                                   ts3Api.addClientToServerGroup(Data.RAXP_GROUP_ID, dbid);
-                                    break;
-
-                                case  "default":
-                                   ts3Api.addClientToServerGroup(Data.GAST_GROUP_ID, dbid);
-                                    break;
-
-                                    default:break;
-
-
-                            }
-
-
-                            player.sendMessage(Data.PREFIX+  "§7Du hast dich erfolgreich verifiziert");
-                            ts3Api.sendPrivateMessage(client.getId(),
-                                    "[B]Du hast dich erfolgreich mit dem Namen [color=green]"+name+" [/color]verifiziert[/B]");
-
-
-
-
+                            }else player.sendMessage(Data.PREFIX+"§cUngültige Angabe");
                             break;
                         case "no":
+                            if(manager.isWaitingVerify(name)) {
 
+                                player.sendMessage(Data.PREFIX + "§7Verifizierung abgebrochen");
+                            }else player.sendMessage(Data.PREFIX+"§cUngültige Angabe");
                             break;
 
 

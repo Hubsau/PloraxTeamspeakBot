@@ -26,6 +26,7 @@ public class VerifyData {
     public boolean isVerifiedbyUID(String uid){
 
 
+        System.out.println("string"+ uid);
         Document playerData = new Document("uid", uid);
         return mongoManager.getVerifyData().find(playerData).first() != null;
     }
@@ -45,8 +46,11 @@ public class VerifyData {
         document.append("uid", uid);
         document.append("uuid", ingame.toString());
         document.append("rang", rang);
+        document.append("groupID", -1);
         mongoManager.getVerifyData().insertOne(document);
     }
+
+
 
     public UUID getIngameUUID(String uid){
 
@@ -60,13 +64,30 @@ public class VerifyData {
         Document document = mongoManager.getVerifyData().find(new Document("uid", uid)).first();
         return document.getString("rang");
     }
-    
+
+    public int getGroupID(String uid){
+
+        Document document = mongoManager.getVerifyData().find(new Document("uid", uid)).first();
+        return document.getInteger("groupID");
+    }
+
+
     public void updateRang(String uuid, String currentRang){
         Document document = mongoManager.getVerifyData().find(new Document("uuid", uuid)).first();
 
         mongoManager.getVerifyData().updateOne(document, new Document("$set", new Document("rang", currentRang)));
 
     }
+
+    public void setRang(String uid, int groupID, String rang){
+        Document document = mongoManager.getVerifyData().find(new Document("uid", uid)).first();
+
+        mongoManager.getVerifyData().updateOne(document, new Document("$set", new Document("groupID", groupID)));
+        mongoManager.getVerifyData().updateOne(document, new Document("$set", new Document("rang", rang)));
+
+    }
+
+
 
     public void removeVerifyByUUID(String uuid){
 

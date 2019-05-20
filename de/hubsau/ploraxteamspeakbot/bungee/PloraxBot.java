@@ -39,7 +39,6 @@ public class PloraxBot extends Plugin {
         mongoManager.connectToDatabase();
         verifyData = new VerifyData(this);
         manager = new VerifyManager(this);
-
         getProxy().getPluginManager().registerCommand(this, new VerifyCommand(this));
     }
 

@@ -18,11 +18,11 @@ public class  SupportReason {
 
     public SupportReason() {
 
-        reasons.put("1", "AlFr");
-        reasons.put("2", "BW");
-        reasons.put("3", "Rt/Eb");
-        reasons.put("4", "Bug");
-        reasons.put("5", "B/AG");
+        reasons.put("1", "Allgemeine Frage");
+        reasons.put("2", "Bewerbungen");
+        reasons.put("3", "Report / Entbannung");
+        reasons.put("4", "Bug melden");
+        reasons.put("5", "Beschwerde / Administrationsgespräch");
 
     }
 

@@ -15,15 +15,24 @@ import com.github.theholywaffle.teamspeak3.api.ChannelProperty;
 import com.github.theholywaffle.teamspeak3.api.event.*;
 import com.github.theholywaffle.teamspeak3.api.wrapper.Client;
 import de.dytanic.cloudnet.api.CloudAPI;
+import de.dytanic.cloudnet.lib.player.CloudPlayer;
+import de.dytanic.cloudnet.lib.player.OfflinePlayer;
+import de.dytanic.cloudnet.lib.player.permission.PermissionPool;
 import de.hubsau.ploraxteamspeakbot.bungee.PloraxBot;
+import de.hubsau.ploraxteamspeakbot.database.VerifyData;
 import de.hubsau.ploraxteamspeakbot.util.Data;
 import de.hubsau.ploraxteamspeakbot.verify.VerifyManager;
 import net.md_5.bungee.BungeeCord;
 import net.md_5.bungee.api.chat.*;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.UUID;
 
 
 public class EventListener implements TS3Listener {
@@ -48,16 +57,64 @@ public class EventListener implements TS3Listener {
     public void onTextMessage(TextMessageEvent event) {
 
 
-        try {
-            if(event.getInvokerId() == ts3Api.whoAmI().get().getId())
 
-                return;
-        } catch (InterruptedException e) {
-            return;
-        }
 
         String message = event.getMessage();
         Client invoker = ts3Api.getClientByUId(event.getInvokerUniqueId()).getUninterruptibly();
+
+        final VerifyManager manager = plugin.getManager();
+        if(manager.getAcceptVerify().containsKey(event.getInvokerUniqueId())){
+
+            if(event.getMessage().equalsIgnoreCase("!ja")){
+
+
+                final UUID uuid = UUID.fromString(manager.getAcceptVerify().get(event.getInvokerUniqueId()));
+                CloudPlayer player = CloudAPI.getInstance().getOnlinePlayer(uuid);
+
+                final String uid = event.getInvokerUniqueId();
+                final PermissionPool pool = CloudAPI.getInstance().getPermissionPool();
+                final String group = player.getPermissionEntity().getHighestPermissionGroup(pool).getName();
+                manager.verify(uuid, uid, group);
+
+                final Client client = ts3Api.getClientByUId(uid).getUninterruptibly();
+                final int dbid = client.getDatabaseId();
+
+                manager.setRang(group, dbid, uid );
+
+                if(BungeeCord.getInstance().getPlayer(uuid) != null) {
+                    ProxiedPlayer player1 = BungeeCord.getInstance().getPlayer(uuid);
+                    player1.sendMessage(Data.PREFIX + "§7Du hast dich erfolgreich verifiziert");
+                    ts3Api.sendPrivateMessage(client.getId(),
+                            "[B]Du hast dich erfolgreich mit dem Namen [color=green]" + player.getName() + " [/color]verifiziert[/B]");
+
+                    try {
+                        URL url = new URL("https://visage.surgeplay.com/face/128/" + uuid.toString());
+                        System.out.println(url);
+                        InputStream in = new BufferedInputStream(url.openStream());
+
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        byte[] buf = new byte[128];
+                        int n = 0;
+                        while (-1 != (n = in.read(buf))) {
+                            out.write(buf, 0, n);
+                        }
+                        out.close();
+                        in.close();
+                        byte[] response = out.toByteArray();
+                        long value = ts3Api.uploadIconDirect(response).getUninterruptibly();
+                        ts3Api.addClientPermission(dbid, "i_icon_id", (int) value, false);
+                        manager.getAcceptVerify().remove(uid);
+                        manager.getWaitingVerify().remove(uid);
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }else if(event.getMessage().equalsIgnoreCase("!nein"))
+                ts3Api.sendPrivateMessage(event.getInvokerId(), "[B]Verifizierung abgebrochen[/B]");
+        }
+
 
         switch (message.toLowerCase()){
 
@@ -74,27 +131,34 @@ public class EventListener implements TS3Listener {
 
                         if(plugin.getManager().isVerifiedbyUID(event.getInvokerUniqueId())){
 
-                            int channel = 0;
-
-
-                                channel = ts3Api.createChannel(event.getInvokerId()+"", Collections.singletonMap(ChannelProperty.CHANNEL_ORDER, Data.SUPPORTCHANNELID.toString())).getUninterruptibly();
-
+                            int channel;
+                            channel = ts3Api.createChannel(event.getInvokerId()+"", Collections.singletonMap(ChannelProperty.CHANNEL_ORDER, Data.SUPPORTCHANNELID.toString())).getUninterruptibly();
 
                             ts3Api.moveClient(event.getInvokerId(), channel);
-
+                            OfflinePlayer offlinePlayer = CloudAPI.getInstance().getOfflinePlayer(plugin.getVerifyData().getIngameUUID(event.getInvokerUniqueId()));
                             ts3Api.editChannel(channel, ChannelProperty.CHANNEL_NAME,
-                                    CloudAPI.getInstance().getOfflinePlayer(plugin.getVerifyData().getIngameUUID(event.getInvokerUniqueId())).getName()+" ("+ message+ ")");
-
-
+                                    offlinePlayer.getName()+" ("+ message+ ")");
                             ts3Api.moveQuery(Data.JOINCHANNELID);
+                            ts3Api.editChannel(channel, ChannelProperty.CHANNEL_DESCRIPTION, "[center]\n" +
+                                    "\n" +
+                                    "[img]https://visage.surgeplay.com/bust/128/"+offlinePlayer.getUniqueId().toString().replaceAll("-", "")+"\n" +
+                                    "[/img]\n" +
+                                    "\n" +
+                                    "[SIZE=16][COLOR=#55ff00]"+offlinePlayer.getPermissionEntity().getHighestPermissionGroup(CloudAPI.getInstance().getPermissionPool()).getName()+"[/COLOR] [COLOR=GRAY]\n" +
+                                    "\n" +
+                                    "[SIZE=13][COLOR=GRAY]Benötigt Support im Bereich[/COLOR]\n" +
+                                    "[COLOR=#55ff00]"+supportReason.getReasons().get(message)+"[/COLOR]\n");
 
-                            ts3Api.addChannelPermission(channel, "i_channel_needed_join_power", Data.SUPPORT_CHANNEL_JOIN_POWER);
-                            ts3Api.addChannelPermission(channel, "i_channel_needed_subscribe_power", Data.SUPPORT_CHANNEL_SUBSCRIBE_POWER);
-                            ts3Api.addChannelPermission(channel, "i_channel_needed_modify_power", Data.SUPPORT_CHANNEL_MODIFY_POWER);
-                            ts3Api.addChannelPermission(channel, "i_channel_needed_delete_power", Data.SUPPORT_CHANNEL_DELETE_POWER);
-                            ts3Api.addChannelPermission(channel, "i_ft_needed_file_rename_power", Data.SUPPORT_CHANNEL_RENAME_POWER);
+                            ts3Api.addChannelPermission(channel, "i_channel_needed_join_power", Data.SUPPORT_CHANNEL_JOIN_POWER).getUninterruptibly();
+                            ts3Api.addChannelPermission(channel, "i_channel_needed_subscribe_power", Data.SUPPORT_CHANNEL_SUBSCRIBE_POWER).getUninterruptibly();
+                            ts3Api.addChannelPermission(channel, "i_channel_needed_modify_power", Data.SUPPORT_CHANNEL_MODIFY_POWER).getUninterruptibly();
+                            ts3Api.addChannelPermission(channel, "i_channel_needed_delete_power", Data.SUPPORT_CHANNEL_DELETE_POWER).getUninterruptibly();
+                            ts3Api.addChannelPermission(channel, "i_ft_needed_file_rename_power", Data.SUPPORT_CHANNEL_RENAME_POWER).getUninterruptibly();
+
 
                             ts3Api.getClients().getUninterruptibly().forEach(client -> {
+
+
 
                                 if(client.isInServerGroup(Data.SUPPORT_POKE_GROUP_ID)){
                                     ts3Api.pokeClient(client.getId(), "[B]Der Spieler [color=green]"+event.getInvokerName()+"[/color] wartet im Support[/B]").getUninterruptibly();
@@ -125,22 +189,16 @@ public class EventListener implements TS3Listener {
 
 
                 default:break;
-
-
         }
-
-
             return;
 
-
-
         }
+
+
+
 
 
         private void sendVerifyReqest(String ipadress, int invokerID, String invokerName, String uid){
-
-
-
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -193,11 +251,34 @@ public class EventListener implements TS3Listener {
     public void onClientJoin(ClientJoinEvent event) {
 
 
+        String uid = ts3Api.getClientInfo(event.getClientId()).getUninterruptibly().getUniqueIdentifier();
+
         final VerifyManager manager = plugin.getManager();
-        if(!manager.isVerifiedbyUID(event.getInvokerUniqueId())){
+        if(!manager.isVerifiedbyUID(uid)){
             ts3Api.sendPrivateMessage(event.getClientId(), "Nutze !verify um dich mit deinen Ingame-Rang zu verifizieren.");
 
+        }else{
+
+
+
+            UUID uuid = plugin.getVerifyData().getIngameUUID(uid);
+            final String group = CloudAPI.getInstance().getOfflinePlayer(uuid).getPermissionEntity().
+                    getHighestPermissionGroup(CloudAPI.getInstance().getPermissionPool())
+                    .getName();
+            String dbGroup = plugin.getVerifyData().getRang(uid);
+
+
+            if(group.equals(dbGroup)) return;
+
+
+            final Client client = ts3Api.getClientByUId(uid).getUninterruptibly();
+            final int dbid = client.getDatabaseId();
+
+            ts3Api.removeClientFromServerGroup(plugin.getVerifyData().getGroupID(uid), dbid);
+            manager.setRang(group, dbid, uid);
         }
+
+
 
 
     }
@@ -206,27 +287,24 @@ public class EventListener implements TS3Listener {
     @Override
     public void onClientMoved(ClientMovedEvent event) {
 
-        if(event.getTargetChannelId() == Data.SUPPORTCHANNELID){
+
+                if(event.getTargetChannelId() == Data.SUPPORTCHANNELID){
+
+                    final VerifyManager manager = plugin.getManager();
+
+                    if (manager.isVerifiedbyUID(ts3Api.getClientInfo(event.getClientId()).getUninterruptibly().getUniqueIdentifier())) {
+                        ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#0984d1]Willkommen[/COLOR] im Support[/B]\n" +
+                                "[B][/B]\n[B][COLOR=#00aa00]1[/COLOR][/B] Allgemeine Frage\n" +
+                                "[B][COLOR=#00aa00]2[/COLOR][/B] Bewerbungen\n" +
+                                "[B][COLOR=#00aa00]3[/COLOR][/B] Report / Entbannung\n" +
+                                "[B][COLOR=#00aa00]4[/COLOR][/B] Bug melden\n" +
+                                "[B][COLOR=#00aa00]5[/COLOR][/B] Beschwerde / Administrationsgespräch").getUninterruptibly();
 
 
-            Thread thread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#0984d1]Willkommen[/COLOR] im Support[/B]").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][/B]").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#00aa00]1[/COLOR][/B] Allgemeine Frage").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#00aa00]2[/COLOR][/B] Bewerbungen").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#00aa00]3[/COLOR][/B] Report / Entbannung").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#00aa00]4[/COLOR][/B] Bug melden").getUninterruptibly();
-                    ts3Api.sendPrivateMessage(event.getClientId(), "[B][COLOR=#00aa00]5[/COLOR][/B] Beschwerde / Administrationsgespräch").getUninterruptibly();
+                    }else ts3Api.sendPrivateMessage(event.getClientId(), "Bitte verifiziere dich zuerst! (schreib mir !verify)").getUninterruptibly();
+
+
                 }
-            });
-            thread.start();
-
-
-
-
-        }
 
 
 
